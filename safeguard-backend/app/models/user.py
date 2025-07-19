@@ -32,7 +32,6 @@ class EmergencyContact(Base):
     user_id = Column(String, ForeignKey("users.id"), nullable=False)
     name = Column(String, nullable=False)
     phone = Column(String, nullable=False)
-    relationship = Column(String)
     priority_order = Column(Integer, default=1)
     created_at = Column(DateTime, default=func.now())
     
