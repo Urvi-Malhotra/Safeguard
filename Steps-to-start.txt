@@ -1,0 +1,28 @@
+1. Create Frontend
+bashnpx create-react-app safeguard-frontend
+cd safeguard-frontend
+npm install react-router-dom axios socket.io-client lucide-react react-hot-toast zustand date-fns
+2. Copy All Files
+Copy all the code from the artifact above into the respective files:
+
+src/components/ - All UI components
+src/hooks/ - Custom React hooks
+src/services/ - API and WebSocket services
+src/store/ - Zustand state management
+src/pages/ - Login and Dashboard pages
+src/config/ - Configuration files
+public/ - PWA files and HTML template
+
+3. Start Both Servers
+bash# Terminal 1: Backend (from previous Python setup)
+cd safeguard-backend
+python run.py
+
+# Terminal 2: Frontend
+cd safeguard-frontend
+npm start
+4. Access Application
+
+Frontend: http://localhost:3000
+Backend API: http://localhost:5000
+API Docs: http://localhost:5000/docs
