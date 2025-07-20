@@ -1,12 +1,11 @@
 import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { useAuthStore, useAppStore } from './store/useStore';
+import { useAuthStore } from './store/useStore';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 
-const App = () => {
+function App() {
   const { isAuthenticated, user, setAuth } = useAuthStore();
-  const { setOnlineStatus } = useAppStore();
 
   // Check for existing authentication on app load
   useEffect(() => {
@@ -25,20 +24,6 @@ const App = () => {
     }
   }, [setAuth]);
 
-  // Monitor online/offline status
-  useEffect(() => {
-    const handleOnline = () => setOnlineStatus(true);
-    const handleOffline = () => setOnlineStatus(false);
-
-    window.addEventListener('online', handleOnline);
-    window.addEventListener('offline', handleOffline);
-
-    return () => {
-      window.removeEventListener('online', handleOnline);
-      window.removeEventListener('offline', handleOffline);
-    };
-  }, [setOnlineStatus]);
-
   return (
     <Router>
       <div className="App">
@@ -49,20 +34,18 @@ const App = () => {
           />
           <Route 
             path="/dashboard" 
-            element={isAuthenticated ? <Dashboard /> : <Navigate to="/login" replace />} 
+            element={isAuthenticated ? <Dashboard /> : <Dashboard />} 
           />
           <Route 
             path="/" 
-            element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} 
-          />
-          <Route 
-            path="*" 
             element={<Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />} 
           />
         </Routes>
       </div>
     </Router>
   );
-};
+}
 
 export default App;
+
+

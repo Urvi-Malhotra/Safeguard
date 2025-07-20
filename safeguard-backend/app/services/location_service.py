@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, text
-from app.models.user import User, UserLocation
+from app.models.user import User
+from app.models.location import UserLocation
 from typing import List
 from datetime import datetime, timedelta
 import math

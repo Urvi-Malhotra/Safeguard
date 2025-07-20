@@ -1,9 +1,10 @@
 import axios from 'axios';
-import { API_ENDPOINTS } from '../config/api';
+
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
 // Create axios instance
 const api = axios.create({
-  baseURL: 'http://localhost:5000',
+  baseURL: API_BASE_URL,
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json',
@@ -14,7 +15,7 @@ const api = axios.create({
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('token');
-    if (token) {
+    if (token && token !== 'demo-token-for-testing') {
       config.headers.Authorization = `Bearer ${token}`;
     }
     return config;
@@ -39,42 +40,44 @@ api.interceptors.response.use(
 
 // Auth API
 export const authAPI = {
-  googleLogin: () => api.post(API_ENDPOINTS.AUTH.GOOGLE),
-  refreshToken: () => api.post(API_ENDPOINTS.AUTH.REFRESH),
+  googleLogin: (accessToken) => api.post('/api/v1/auth/google', { access_token: accessToken }),
+  refreshToken: () => api.post('/api/v1/auth/refresh'),
 };
 
 // User API
 export const userAPI = {
-  getProfile: () => api.get(API_ENDPOINTS.USERS.PROFILE),
-  updateProfile: (data) => api.put(API_ENDPOINTS.USERS.PROFILE, data),
-  getEmergencyContacts: () => api.get(API_ENDPOINTS.USERS.EMERGENCY_CONTACTS),
-  addEmergencyContact: (data) => api.post(API_ENDPOINTS.USERS.EMERGENCY_CONTACTS, data),
-  removeEmergencyContact: (id) => api.delete(`${API_ENDPOINTS.USERS.EMERGENCY_CONTACTS}/${id}`),
+  getProfile: () => api.get('/api/v1/users/profile'),
+  updateProfile: (data) => api.put('/api/v1/users/profile', data),
+  getEmergencyContacts: () => api.get('/api/v1/users/emergency-contacts'),
+  addEmergencyContact: (data) => api.post('/api/v1/users/emergency-contacts', data),
+  removeEmergencyContact: (id) => api.delete(`/api/v1/users/emergency-contacts/${id}`),
 };
 
 // Emergency API
 export const emergencyAPI = {
-  trigger: (data) => api.post(API_ENDPOINTS.EMERGENCY.TRIGGER, data),
-  dismiss: (data) => api.post(API_ENDPOINTS.EMERGENCY.DISMISS, data),
-  getStatus: () => api.get(API_ENDPOINTS.EMERGENCY.STATUS),
+  trigger: (data) => api.post('/api/v1/emergency/trigger', data),
+  dismiss: (sessionId) => api.post('/api/v1/emergency/dismiss', { session_id: sessionId }),
+  getStatus: () => api.get('/api/v1/emergency/status'),
 };
 
 // Location API
 export const locationAPI = {
-  update: (data) => api.post(API_ENDPOINTS.LOCATION.UPDATE, data),
+  update: (data) => api.post('/api/v1/location/update', data),
   getNearbyUsers: (lat, lng, radius = 3.0) => 
-    api.get(`${API_ENDPOINTS.LOCATION.NEARBY_USERS}?lat=${lat}&lng=${lng}&radius=${radius}`),
+    api.get(`/api/v1/location/nearby-users?lat=${lat}&lng=${lng}&radius=${radius}`),
   getEmergencyServices: (lat, lng) => 
-    api.get(`${API_ENDPOINTS.LOCATION.EMERGENCY_SERVICES}?lat=${lat}&lng=${lng}`),
+    api.get(`/api/v1/location/emergency-services?lat=${lat}&lng=${lng}`),
 };
 
 // Voice API
 export const voiceAPI = {
-  trainPhrase: (data) => api.post(API_ENDPOINTS.VOICE.TRAIN_PHRASE, data),
+  trainPhrase: (data) => api.post('/api/v1/voice/train-phrase', data),
   verifyPhrase: (transcript, confidence = 0.8) => 
-    api.post(`${API_ENDPOINTS.VOICE.VERIFY_PHRASE}?transcript=${transcript}&confidence=${confidence}`),
-  updatePhrase: (data) => api.put(API_ENDPOINTS.VOICE.UPDATE_PHRASE, data),
-  getStatus: () => api.get(API_ENDPOINTS.VOICE.STATUS),
+    api.post(`/api/v1/voice/verify-phrase?transcript=${encodeURIComponent(transcript)}&confidence=${confidence}`),
+  updatePhrase: (data) => api.put('/api/v1/voice/update-phrase', data),
+  getStatus: () => api.get('/api/v1/voice/status'),
 };
 
 export default api;
+
+

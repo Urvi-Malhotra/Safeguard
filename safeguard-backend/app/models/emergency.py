@@ -16,7 +16,6 @@ class EmergencySession(Base):
     recording_path = Column(String)
     triggered_at = Column(DateTime, default=func.now())
     resolved_at = Column(DateTime)
-    metadata = Column(Text)  # JSON string for additional data
     
     # Relationships
     user = relationship("User", back_populates="emergency_sessions")

@@ -26,6 +26,7 @@ export const useEmergency = () => {
   useEffect(() => {
     const handleVoiceEmergency = (event) => {
       const { transcript, confidence } = event.detail;
+      console.log('Voice emergency triggered:', transcript, confidence);
       triggerEmergency('voice', { transcript, confidence });
     };
 
@@ -38,6 +39,7 @@ export const useEmergency = () => {
   // Listen for socket emergency events
   useEffect(() => {
     const handleEmergencyAlert = (data) => {
+      console.log('Emergency alert received:', data);
       if (data.user.id !== user?.id) {
         addNotification({
           type: 'emergency',
@@ -53,6 +55,7 @@ export const useEmergency = () => {
     };
 
     const handleEmergencyDismissed = (data) => {
+      console.log('Emergency dismissed:', data);
       toast.success('✅ Emergency has been dismissed');
     };
 
@@ -71,6 +74,7 @@ export const useEmergency = () => {
       return;
     }
 
+    console.log('Triggering emergency:', triggerType, additionalData);
     setIsTriggering(true);
 
     try {
@@ -84,7 +88,50 @@ export const useEmergency = () => {
         ...additionalData,
       };
 
+      console.log('Emergency data being sent:', emergencyData);
+
+      // Handle demo mode differently
+      if (localStorage.getItem('token') === 'demo-token-for-testing') {
+        // Demo mode - simulate emergency trigger
+        const mockResponse = {
+          success: true,
+          session_id: 'demo-session-' + Date.now(),
+          message: 'Demo emergency triggered successfully',
+          contacts_notified: 2,
+          nearby_users_notified: 1,
+          location_url: currentLocation ? 
+            `https://maps.google.com/?q=${currentLocation.latitude},${currentLocation.longitude}` : null
+        };
+
+        setEmergencyActive(true, {
+          sessionId: mockResponse.session_id,
+          triggerType,
+          triggeredAt: new Date().toISOString(),
+        });
+
+        setAlarmActive(true);
+        startRecording();
+
+        toast.error('🚨 DEMO EMERGENCY ALERT ACTIVE!', {
+          duration: 5000,
+        });
+
+        // Auto-stop alarm after 3 minutes
+        setTimeout(() => {
+          setAlarmActive(false);
+        }, 180000);
+
+        // Auto-stop recording after 15 minutes
+        setTimeout(() => {
+          stopRecording();
+        }, 900000);
+
+        return mockResponse;
+      }
+
+      // Real backend call
       const response = await emergencyAPI.trigger(emergencyData);
+      console.log('Emergency API response:', response.data);
       
       if (response.data.success) {
         setEmergencyActive(true, {
@@ -99,6 +146,17 @@ export const useEmergency = () => {
         toast.error('🚨 EMERGENCY ALERT ACTIVE!', {
           duration: 5000,
         });
+
+        // Show success details
+        toast.success(`Emergency contacts notified: ${response.data.contacts_notified}`, {
+          duration: 3000,
+        });
+
+        if (response.data.nearby_users_notified > 0) {
+          toast.success(`Nearby users alerted: ${response.data.nearby_users_notified}`, {
+            duration: 3000,
+          });
+        }
 
         // Auto-stop alarm after 3 minutes
         setTimeout(() => {
@@ -116,7 +174,12 @@ export const useEmergency = () => {
       }
     } catch (error) {
       console.error('Emergency trigger error:', error);
-      toast.error('Failed to trigger emergency');
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        toast.error(`Failed to trigger emergency: ${error.response.data.detail || error.message}`);
+      } else {
+        toast.error('Failed to trigger emergency - Please check your connection');
+      }
     } finally {
       setIsTriggering(false);
     }
@@ -128,10 +191,20 @@ export const useEmergency = () => {
       return;
     }
 
+    console.log('Dismissing emergency:', emergencySession.sessionId);
+
     try {
-      const response = await emergencyAPI.dismiss({
-        session_id: emergencySession.sessionId,
-      });
+      // Handle demo mode
+      if (localStorage.getItem('token') === 'demo-token-for-testing') {
+        dismissEmergency();
+        stopRecording();
+        toast.success('✅ Demo emergency dismissed');
+        return;
+      }
+
+      // Real backend call
+      const response = await emergencyAPI.dismiss(emergencySession.sessionId);
+      console.log('Dismiss API response:', response.data);
 
       if (response.data.success) {
         dismissEmergency();
@@ -142,25 +215,79 @@ export const useEmergency = () => {
       }
     } catch (error) {
       console.error('Emergency dismiss error:', error);
-      toast.error('Failed to dismiss emergency');
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        toast.error(`Failed to dismiss emergency: ${error.response.data.detail || error.message}`);
+      } else {
+        toast.error('Failed to dismiss emergency - Please check your connection');
+      }
     }
   }, [emergencySession, dismissEmergency]);
 
   const startRecording = useCallback(() => {
     setRecording(true);
     console.log('🎙️ Started emergency recording');
-    // In a real app, implement actual audio recording
+    
+    // Start actual audio recording
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      navigator.mediaDevices.getUserMedia({ audio: true })
+        .then(stream => {
+          const mediaRecorder = new MediaRecorder(stream);
+          const audioChunks = [];
+
+          mediaRecorder.ondataavailable = event => {
+            audioChunks.push(event.data);
+          };
+
+          mediaRecorder.onstop = () => {
+            const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+            const audioUrl = URL.createObjectURL(audioBlob);
+            
+            // Create download link
+            const a = document.createElement('a');
+            a.href = audioUrl;
+            a.download = `emergency-recording-${new Date().toISOString()}.wav`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            URL.revokeObjectURL(audioUrl);
+            stream.getTracks().forEach(track => track.stop());
+            
+            toast.success('Emergency recording saved');
+          };
+
+          mediaRecorder.start();
+          
+          // Stop recording after 15 minutes
+          setTimeout(() => {
+            if (mediaRecorder.state === 'recording') {
+              mediaRecorder.stop();
+            }
+          }, 15 * 60 * 1000);
+          
+        })
+        .catch(error => {
+          console.error('Failed to start recording:', error);
+          toast.error('Failed to start emergency recording');
+        });
+    }
   }, [setRecording]);
 
   const stopRecording = useCallback(() => {
     setRecording(false);
     console.log('🎙️ Stopped emergency recording');
-    // In a real app, stop and upload recording
   }, [setRecording]);
 
   const getEmergencyStatus = useCallback(async () => {
     try {
+      // Handle demo mode
+      if (localStorage.getItem('token') === 'demo-token-for-testing') {
+        return { active: false };
+      }
+
       const response = await emergencyAPI.getStatus();
+      console.log('Emergency status:', response.data);
       return response.data;
     } catch (error) {
       console.error('Failed to get emergency status:', error);
@@ -179,3 +306,5 @@ export const useEmergency = () => {
     getEmergencyStatus,
   };
 };
+
+

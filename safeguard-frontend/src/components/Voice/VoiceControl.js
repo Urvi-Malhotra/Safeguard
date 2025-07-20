@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mic, MicOff, Edit3, Save, Volume2 } from 'lucide-react';
 import { useVoiceRecognition } from '../../hooks/useVoiceRecognition';
 import { useVoiceStore } from '../../store/useStore';
@@ -13,6 +13,49 @@ const VoiceControl = () => {
   const [newPhrase, setNewPhrase] = useState(safetyPhrase);
   const [phrasePassword, setPhrasePassword] = useState('');
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load voice status on component mount
+  useEffect(() => {
+    loadVoiceStatus();
+  }, []);
+
+  const loadVoiceStatus = async () => {
+    try {
+      setIsLoading(true);
+      
+      // Handle demo mode
+      if (localStorage.getItem('token') === 'demo-token-for-testing') {
+        // Demo mode - use local storage
+        const demoPhrase = localStorage.getItem('demo_safety_phrase') || '';
+        setSafetyPhrase(demoPhrase);
+        setNewPhrase(demoPhrase);
+        setIsEditing(!demoPhrase);
+        setIsLoading(false);
+        return;
+      }
+
+      // Real backend call
+      const response = await voiceAPI.getStatus();
+      console.log('Voice status response:', response.data);
+      
+      if (response.data.has_phrase) {
+        setSafetyPhrase(response.data.phrase);
+        setNewPhrase(response.data.phrase);
+        setIsEditing(false);
+      } else {
+        setSafetyPhrase('');
+        setNewPhrase('');
+        setIsEditing(true);
+      }
+    } catch (error) {
+      console.error('Failed to load voice status:', error);
+      // Fallback to editing mode if loading fails
+      setIsEditing(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleSavePhrase = async () => {
     if (!newPhrase.trim()) {
@@ -28,10 +71,26 @@ const VoiceControl = () => {
     setIsUpdating(true);
     
     try {
+      // Handle demo mode
+      if (localStorage.getItem('token') === 'demo-token-for-testing') {
+        // Demo mode - save to local storage
+        localStorage.setItem('demo_safety_phrase', newPhrase.trim());
+        localStorage.setItem('demo_phrase_password', phrasePassword);
+        
+        setSafetyPhrase(newPhrase.trim());
+        setIsEditing(false);
+        setPhrasePassword('');
+        toast.success('✅ Demo safety phrase saved successfully');
+        return;
+      }
+
+      // Real backend call
       const response = await voiceAPI.trainPhrase({
         phrase: newPhrase.trim(),
         phrase_password: phrasePassword,
       });
+
+      console.log('Train phrase response:', response.data);
 
       if (response.data.success) {
         setSafetyPhrase(newPhrase.trim());
@@ -43,7 +102,12 @@ const VoiceControl = () => {
       }
     } catch (error) {
       console.error('Failed to save phrase:', error);
-      toast.error('Failed to save safety phrase');
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        toast.error(`Failed to save safety phrase: ${error.response.data.detail || error.message}`);
+      } else {
+        toast.error('Failed to save safety phrase - Please check your connection');
+      }
     } finally {
       setIsUpdating(false);
     }
@@ -63,11 +127,31 @@ const VoiceControl = () => {
     setIsUpdating(true);
 
     try {
+      // Handle demo mode
+      if (localStorage.getItem('token') === 'demo-token-for-testing') {
+        const storedPassword = localStorage.getItem('demo_phrase_password');
+        if (storedPassword !== phrasePassword) {
+          toast.error('Invalid password');
+          setIsUpdating(false);
+          return;
+        }
+        
+        localStorage.setItem('demo_safety_phrase', newPhrase.trim());
+        setSafetyPhrase(newPhrase.trim());
+        setIsEditing(false);
+        setPhrasePassword('');
+        toast.success('✅ Demo safety phrase updated successfully');
+        return;
+      }
+
+      // Real backend call
       const response = await voiceAPI.updatePhrase({
         phrase: newPhrase.trim(),
         old_password: phrasePassword,
         new_password: phrasePassword, // Using same password for simplicity
       });
+
+      console.log('Update phrase response:', response.data);
 
       if (response.data.success) {
         setSafetyPhrase(newPhrase.trim());
@@ -79,11 +163,33 @@ const VoiceControl = () => {
       }
     } catch (error) {
       console.error('Failed to update phrase:', error);
-      toast.error('Failed to update safety phrase');
+      if (error.response) {
+        console.error('Error response:', error.response.data);
+        toast.error(`Failed to update safety phrase: ${error.response.data.detail || error.message}`);
+      } else {
+        toast.error('Failed to update safety phrase - Please check your connection');
+      }
     } finally {
       setIsUpdating(false);
     }
   };
+
+  const handleToggleListening = () => {
+    console.log('Toggle listening clicked');
+    toggleListening();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="bg-white rounded-xl shadow-lg p-6">
+        <h3 className="font-semibold text-gray-800 mb-4">Voice Guard</h3>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="text-gray-500 mt-2">Loading voice settings...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!voiceRecognitionSupported) {
     return (
@@ -92,7 +198,7 @@ const VoiceControl = () => {
         <div className="text-center text-gray-500">
           <MicOff size={48} className="mx-auto mb-2 text-gray-400" />
           <p>Voice recognition is not supported in your browser</p>
-          <p className="text-sm mt-1">Please use Chrome or Safari</p>
+          <p className="text-sm mt-1">Please use Chrome or Safari with HTTPS</p>
         </div>
       </div>
     );
@@ -105,7 +211,7 @@ const VoiceControl = () => {
       {/* Voice Control Button */}
       <div className="flex flex-col items-center mb-6">
         <button
-          onClick={toggleListening}
+          onClick={handleToggleListening}
           disabled={!hasSafetyPhrase || isEditing}
           className={`w-20 h-20 rounded-full flex items-center justify-center transition-all duration-200 ${
             !hasSafetyPhrase || isEditing
@@ -209,9 +315,14 @@ const VoiceControl = () => {
         <p className="mb-1">• Speak your safety phrase to trigger emergency alerts</p>
         <p className="mb-1">• Keep your device near you when voice guard is active</p>
         <p>• Choose a unique phrase you won't say accidentally</p>
+        {localStorage.getItem('token') === 'demo-token-for-testing' && (
+          <p className="text-orange-600 font-medium mt-2">Demo Mode: Voice phrases saved locally</p>
+        )}
       </div>
     </div>
   );
 };
 
 export default VoiceControl;
+
+
